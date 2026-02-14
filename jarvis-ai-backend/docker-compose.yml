@@ -1,0 +1,139 @@
+version: '3.8'
+
+services:
+  # Redis Master
+  redis-master:
+    image: redis:7-alpine
+    container_name: jarvis-redis-master
+    ports:
+      - '6379:6379'
+    command: redis-server --requirepass jarvis-dev-password --appendonly yes
+    volumes:
+      - redis-master-data:/data
+    networks:
+      - jarvis-network
+    healthcheck:
+      test: ['CMD', 'redis-cli', '-a', 'jarvis-dev-password', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Sentinel 1
+  redis-sentinel-1:
+    image: redis:7-alpine
+    container_name: jarvis-sentinel-1
+    ports:
+      - '26379:26379'
+    command: >
+      sh -c '
+        echo "port 26379" > /etc/sentinel.conf &&
+        echo "sentinel monitor mymaster redis-master 6379 2" >> /etc/sentinel.conf &&
+        echo "sentinel auth-pass mymaster jarvis-dev-password" >> /etc/sentinel.conf &&
+        echo "sentinel down-after-milliseconds mymaster 5000" >> /etc/sentinel.conf &&
+        echo "sentinel failover-timeout mymaster 10000" >> /etc/sentinel.conf &&
+        echo "sentinel parallel-syncs mymaster 1" >> /etc/sentinel.conf &&
+        redis-sentinel /etc/sentinel.conf
+      '
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    networks:
+      - jarvis-network
+
+  # Redis Sentinel 2
+  redis-sentinel-2:
+    image: redis:7-alpine
+    container_name: jarvis-sentinel-2
+    ports:
+      - '26380:26379'
+    command: >
+      sh -c '
+        echo "port 26379" > /etc/sentinel.conf &&
+        echo "sentinel monitor mymaster redis-master 6379 2" >> /etc/sentinel.conf &&
+        echo "sentinel auth-pass mymaster jarvis-dev-password" >> /etc/sentinel.conf &&
+        echo "sentinel down-after-milliseconds mymaster 5000" >> /etc/sentinel.conf &&
+        echo "sentinel failover-timeout mymaster 10000" >> /etc/sentinel.conf &&
+        echo "sentinel parallel-syncs mymaster 1" >> /etc/sentinel.conf &&
+        redis-sentinel /etc/sentinel.conf
+      '
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    networks:
+      - jarvis-network
+
+  # Redis Sentinel 3
+  redis-sentinel-3:
+    image: redis:7-alpine
+    container_name: jarvis-sentinel-3
+    ports:
+      - '26381:26379'
+    command: >
+      sh -c '
+        echo "port 26379" > /etc/sentinel.conf &&
+        echo "sentinel monitor mymaster redis-master 6379 2" >> /etc/sentinel.conf &&
+        echo "sentinel auth-pass mymaster jarvis-dev-password" >> /etc/sentinel.conf &&
+        echo "sentinel down-after-milliseconds mymaster 5000" >> /etc/sentinel.conf &&
+        echo "sentinel failover-timeout mymaster 10000" >> /etc/sentinel.conf &&
+        echo "sentinel parallel-syncs mymaster 1" >> /etc/sentinel.conf &&
+        redis-sentinel /etc/sentinel.conf
+      '
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    networks:
+      - jarvis-network
+
+  # Jarvis AI Backend
+  jarvis-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jarvis-backend
+    ports:
+      - '4000:4000'
+    environment:
+      - NODE_ENV=development
+      - PORT=4000
+      - REDIS_SENTINELS=redis-sentinel-1:26379,redis-sentinel-2:26379,redis-sentinel-3:26379
+      - REDIS_SENTINEL_NAME=mymaster
+      - REDIS_PASSWORD=jarvis-dev-password
+      - REDIS_DB=0
+      - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8080
+      - RATE_LIMIT_PER_CUSTOMER=1000
+      - RATE_LIMIT_PER_IP=10000
+      - RATE_LIMIT_WINDOW_MS=3600000
+      - LOG_LEVEL=debug
+      - LOG_FORMAT=json
+      - API_VERSION=2.0.0
+      - API_TITLE=Jarvis AI Backend
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    networks:
+      - jarvis-network
+    volumes:
+      - ./src:/app/src
+    restart: unless-stopped
+
+  # Jarvis AI Frontend
+  jarvis-frontend:
+    build:
+      context: ../jarvis-ai-frontend
+      dockerfile: Dockerfile
+    container_name: jarvis-frontend
+    ports:
+      - '3000:80'
+    depends_on:
+      - jarvis-backend
+    networks:
+      - jarvis-network
+    restart: unless-stopped
+
+volumes:
+  redis-master-data:
+    driver: local
+
+networks:
+  jarvis-network:
+    driver: bridge

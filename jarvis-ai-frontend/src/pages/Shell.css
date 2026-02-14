@@ -1,0 +1,42 @@
+.install-card {
+  margin-bottom: 24px;
+}
+
+.install-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.install-item h4 {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--color-text-secondary);
+}
+
+.script-card .card-header {
+  padding-bottom: 0;
+}
+
+.script-card .tabs {
+  margin-bottom: 0;
+}
+
+.script-card .tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.script-content {
+  margin-top: 16px;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+@media (max-width: 768px) {
+  .install-grid {
+    grid-template-columns: 1fr;
+  }
+}
