@@ -7,6 +7,8 @@ import { openApiMiddleware, openApiRoutes } from './features/openapi';
 import { rateLimiterMiddleware } from './features/rate-limiting';
 import { errorHandler } from './middleware/error-handler';
 import { requestLogger } from './middleware/request-logger';
+import { helmetMiddleware, hppMiddleware, inputSanitizer, securityAuditLogger } from './middleware/security';
+import { metricsMiddleware, metricsRouter } from './features/metrics';
 
 dotenv.config();
 
@@ -29,9 +31,16 @@ try {
   logger.warn('Redis connection failed, rate limiting will use in-memory fallback', { error });
 }
 
+// Security middleware (first in chain)
+app.use(helmetMiddleware);
+app.use(hppMiddleware);
+
 // Global middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+app.use(inputSanitizer);
+app.use(securityAuditLogger);
+app.use(metricsMiddleware);
 app.use(requestLogger);
 
 // Feature middleware (ordered by dependency)
@@ -56,6 +65,9 @@ app.get('/health', (_req: Request, res: Response) => {
 app.get('/api/v1/ping', (_req: Request, res: Response) => {
   res.json({ message: 'pong' });
 });
+
+// Metrics endpoint
+app.use('/api/v1', metricsRouter);
 
 // Error handling
 app.use(errorHandler);
